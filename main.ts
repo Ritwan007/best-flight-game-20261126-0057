@@ -9,7 +9,7 @@
 // The program is deterministic: it copies files in a fixed order and the
 // dossier is a pure function of those files, so running it twice writes
 // byte-identical output.
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -19,8 +19,12 @@ const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
 // Start from a clean output directory so stale files can never leak into
 // the entry: a previous run's screenshots or game files must not survive.
-rmSync(out, { recursive: true, force: true });
+// Only the CONTENTS are removed, never the directory itself: in the grader
+// /output is a mount point and removing it fails with EBUSY (exit 1).
 mkdirSync(out, { recursive: true });
+for (const entry of readdirSync(out)) {
+  rmSync(join(out, entry), { recursive: true, force: true });
+}
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
 if (existsSync(join(here, 'screenshots'))) {
