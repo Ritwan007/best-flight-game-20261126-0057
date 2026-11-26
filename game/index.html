@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Skyline Ridge Run — 3D Flight Game</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b1e33;
+    font-family: "Segoe UI", Verdana, Geneva, sans-serif; color: #eaf6ff; }
+  #scene { position: fixed; inset: 0; }
+  #scene canvas { display: block; }
+  .hud { position: fixed; z-index: 5; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  .panel { background: rgba(6, 22, 38, 0.55); border: 1px solid rgba(140, 220, 255, 0.45);
+    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  #instruments { top: 12px; left: 12px; display: flex; gap: 10px; }
+  .gauge { min-width: 92px; text-align: center; }
+  .gauge .label { font-size: 11px; letter-spacing: 2px; color: #9fd8ff; }
+  .gauge .value { font-size: 30px; font-weight: 700; line-height: 1.05; color: #fff; }
+  .gauge .unit { font-size: 11px; color: #9fd8ff; }
+  #missionBox { top: 12px; right: 12px; text-align: right; min-width: 210px; }
+  #missionBox .title { font-size: 15px; font-weight: 700; color: #ffd76a; letter-spacing: 1px; }
+  #missionBox .sub { font-size: 12px; color: #cfeaff; margin-top: 2px; }
+  #fuelWrap { margin-top: 7px; }
+  #fuelBarOuter { height: 10px; background: rgba(255,255,255,.18); border-radius: 5px; overflow: hidden; }
+  #fuelBar { height: 100%; width: 100%; background: linear-gradient(90deg, #37d67a, #ffd76a); }
+  #fuelBar.low { background: linear-gradient(90deg, #ff5a4e, #ff9a3d); }
+  #throttleBox { left: 12px; bottom: 12px; width: 190px; }
+  #throttleBox .label { font-size: 11px; letter-spacing: 2px; color: #9fd8ff; }
+  #throttleOuter { height: 12px; background: rgba(255,255,255,.18); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+  #throttleBar { height: 100%; width: 0%; background: linear-gradient(90deg, #2fa8ff, #7ee0ff); }
+  #throttlePct { font-size: 13px; margin-top: 3px; color: #fff; }
+  #horizonBox { left: 50%; bottom: 14px; transform: translateX(-50%); width: 170px; height: 84px;
+    overflow: hidden; border-radius: 10px; }
+  #horizonInner { position: absolute; left: -60px; top: -60px; width: 290px; height: 204px; }
+  #horizonSky { position: absolute; left: 0; top: 0; width: 100%; height: 50%; background: #3f8fd2; }
+  #horizonGround { position: absolute; left: 0; top: 50%; width: 100%; height: 50%; background: #7a5a33; }
+  #horizonLine { position: absolute; left: 0; top: 50%; width: 100%; height: 2px; background: #fff; margin-top: -1px; }
+  #horizonBox .fixed { position: absolute; left: 50%; top: 50%; width: 46px; height: 2px;
+    background: #ffd76a; transform: translate(-50%, -50%); z-index: 2; }
+  #horizonLabel { position: absolute; width: 100%; text-align: center; bottom: 2px; font-size: 10px;
+    letter-spacing: 2px; color: #fff; z-index: 2; }
+  #centerMsg { left: 50%; top: 22%; transform: translateX(-50%); text-align: center; width: 640px; }
+  #centerMsg .big { font-size: 34px; font-weight: 800; color: #ffd76a; letter-spacing: 1px; }
+  #centerMsg .small { font-size: 15px; color: #fff; margin-top: 4px; }
+  #crosshair { left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+    border: 2px solid rgba(255,255,255,.75); border-radius: 50%; }
+  #crosshair::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px;
+    background: #ffd76a; border-radius: 50%; transform: translate(-50%, -50%); }
+  #speedHint { right: 12px; bottom: 12px; text-align: right; font-size: 12px; color: #cfeaff;
+    line-height: 1.6; }
+  #overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(8,30,52,.55), rgba(4,14,26,.88)); }
+  #overlay .card { text-align: center; max-width: 640px; padding: 28px 34px; background: rgba(6,22,38,.82);
+    border: 1px solid rgba(140,220,255,.5); border-radius: 16px; }
+  #overlay h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: 2px; color: #ffd76a; }
+  #overlay h2 { margin: 0 0 14px; font-size: 15px; font-weight: 400; color: #9fd8ff; letter-spacing: 3px; }
+  #overlay p { font-size: 14px; line-height: 1.55; color: #eaf6ff; }
+  #overlay .keys { font-size: 13px; color: #cfeaff; line-height: 1.8; margin: 10px 0 16px; }
+  #overlay .keys b { color: #fff; background: rgba(255,255,255,.14); border-radius: 4px; padding: 1px 7px; }
+  .missionBtn { display: block; width: 100%; margin: 8px 0; padding: 11px 14px; font-size: 15px; font-weight: 700;
+    color: #06283f; background: linear-gradient(180deg, #ffd76a, #f5a623); border: none; border-radius: 9px;
+    cursor: pointer; pointer-events: auto; }
+  .missionBtn:hover { filter: brightness(1.1); }
+  .missionBtn small { display: block; font-weight: 400; font-size: 12px; color: #4a3410; }
+  #overlay .foot { font-size: 11px; color: #8fb8d8; margin-top: 12px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+
+<div id="instruments" class="hud">
+  <div class="panel gauge"><div class="label">ALTITUDE</div><div class="value" id="altValue">0</div><div class="unit">FEET</div></div>
+  <div class="panel gauge"><div class="label">AIRSPEED</div><div class="value" id="speedValue">0</div><div class="unit">KNOTS</div></div>
+  <div class="panel gauge"><div class="label">HEADING</div><div class="value" id="headingValue">000&deg;</div><div class="unit" id="headingName">NORTH</div></div>
+  <div class="panel gauge"><div class="label">VERT SPEED</div><div class="value" id="vspeedValue">0</div><div class="unit">FT / MIN</div></div>
+</div>
+
+<div id="missionBox" class="hud panel">
+  <div class="title" id="missionTitle">RING COURSE</div>
+  <div class="sub" id="missionSub">Fly through all 8 rings in order</div>
+  <div class="sub" id="missionScore">RINGS 0 / 8 &nbsp;·&nbsp; SCORE 0</div>
+  <div class="sub" id="missionTimer">TIME 00:00</div>
+  <div id="fuelWrap"><div class="label" style="font-size:11px;letter-spacing:2px;color:#9fd8ff">FUEL</div>
+  <div id="fuelBarOuter"><div id="fuelBar"></div></div></div>
+</div>
+
+<div id="throttleBox" class="hud panel">
+  <div class="label">THROTTLE</div>
+  <div id="throttleOuter"><div id="throttleBar"></div></div>
+  <div id="throttlePct">0% &nbsp;·&nbsp; GEAR DOWN &nbsp;·&nbsp; FLAPS UP</div>
+</div>
+
+<div id="horizonBox" class="hud panel">
+  <div id="horizonInner"><div id="horizonSky"></div><div id="horizonGround"></div><div id="horizonLine"></div></div>
+  <div class="fixed"></div><div id="horizonLabel">ATTITUDE</div>
+</div>
+
+<div id="centerMsg" class="hud"><div class="big" id="centerBig"></div><div class="small" id="centerSmall"></div></div>
+<div id="crosshair" class="hud"></div>
+<div id="speedHint" class="hud">W / S throttle &nbsp;·&nbsp; &uarr; / &darr; pitch<br>&larr; / &rarr; bank &amp; turn &nbsp;·&nbsp; A / D rudder<br>Mouse steers too &nbsp;·&nbsp; G gear &nbsp;·&nbsp; R restart</div>
+
+<div id="overlay">
+  <div class="card">
+    <h1>SKYLINE RIDGE RUN</h1>
+    <h2>3D FLIGHT OVER THE RIDGE VALLEY</h2>
+    <p>Fly the little red prop plane out of Ridgefield Airfield. Thread the glowing rings,
+    mind your fuel, and bring her home on the runway — a gentle touchdown refuels you and
+    scores the landing. Too slow and she stalls; too low over the ridges and she meets the mountain.</p>
+    <div class="keys"><b>W</b>/<b>S</b> throttle &nbsp; <b>&uarr;</b>/<b>&darr;</b> pitch &nbsp; <b>&larr;</b>/<b>&rarr;</b> bank &amp; turn<br>
+    <b>A</b>/<b>D</b> rudder &nbsp; <b>Mouse</b> steer &nbsp; <b>G</b> landing gear &nbsp; <b>M</b> mute &nbsp; <b>R</b> restart</div>
+    <button class="missionBtn" data-mission="rings">RING COURSE<small>8 glowing rings in order, against the clock — best for points</small></button>
+    <button class="missionBtn" data-mission="canyon">CANYON RUN<small>Stay low through the river gorge — fast, close, no room for error</small></button>
+    <button class="missionBtn" data-mission="landing">LANDING CHALLENGE<small>Three gentle touchdowns on runway 27 — smooth is fast</small></button>
+    <div class="foot">An original game. No network, no downloads — everything runs from these files.</div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
